@@ -90,15 +90,11 @@ class GetUrl:
 
 
     def get_volantis_url(self,response, queue):
-        avatar = response.css('.flink-list .info img::attr(data-lazy-src)').extract()
+        avatar = response.css('a.simpleuser img::attr(src)').extract()
         if not avatar:
-            avatar = response.css('.flink-list a img::attr(data-lazy-src)').extract()
+            avatar = response.css('a.site-card img::attr(src)').extract()
         if not avatar:
-            avatar = response.css('.flink-list a .info img::attr(src)').extract()
-        if not avatar:
-            avatar = response.css('.flink-list a img::attr(src)').extract()
-        if not avatar:
-            avatar = response.css('.flink .site-card .info img::attr(data-lazy-src)').extract()
+            avatar = response.css('a.friend-card img::attr(src)').extract()
 
         link = response.css('a.simpleuser::attr(href)').extract()
         if not link:
