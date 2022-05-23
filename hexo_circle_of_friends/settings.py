@@ -18,7 +18,7 @@
 LINK = [
     {
         "link": "https://www.chuckle.top/link/",  # 友链页地址1，修改为你的友链页地址
-        "theme": "volantis"
+        "theme": "common2"
     },
     #     {
     #     "link": "https://noionion.top/link/",  # 友链页地址2
