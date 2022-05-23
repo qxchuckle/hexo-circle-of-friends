@@ -92,7 +92,7 @@ class GetUrl:
     def get_volantis_url(self,response, queue):
         avatar = response.css('a.simpleuser img::attr(src)').extract()
         if not avatar:
-            avatar = response.css('a.site-card img::attr(src)').extract()
+            avatar = response.css('a.site-card div.img img:first-child::attr(src)').extract()
         if not avatar:
             avatar = response.css('a.friend-card img::attr(src)').extract()
 
