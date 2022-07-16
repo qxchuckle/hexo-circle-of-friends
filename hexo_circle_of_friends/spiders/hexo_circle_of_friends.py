@@ -10,8 +10,12 @@ from hexo_circle_of_friends import settings
 from hexo_circle_of_friends.utils.get_url import GetUrl
 from hexo_circle_of_friends.utils.regulations import reg_volantis, reg_normal
 from hexo_circle_of_friends.utils.process_time import format_time
+from hexo_circle_of_friends.utils.logger import get_logger
 
 # from hexo_circle_of_friends import items todo use items
+
+# 日志记录配置
+logger = get_logger()
 
 # post_parsers = ["theme_butterfly_parse"]
 # 文章页解析器
@@ -79,8 +83,9 @@ class FriendpageLinkSpider(scrapy.Spider):
         friendpage_link = []
         friendpage_theme = []
         if settings.DEBUG:
-            friendpage_link.extend(settings.FRIENDPAGE_LINK)
-            friendpage_theme.append("butterfly")
+            for link_dic in settings.FRIENDPAGE_LINK:
+                friendpage_link.append(link_dic["link"])
+                friendpage_theme.append(link_dic["theme"])
         for item in settings.LINK:
             friendpage_link.append(item["link"])
             friendpage_theme.append(item["theme"])
@@ -110,7 +115,7 @@ class FriendpageLinkSpider(scrapy.Spider):
                     if user_info[1] != '你的链接':
                         self.friend_poor.put(user_info)
             except:
-                pass
+                logger.warning("gitee友链获取失败")
 
         # github解析
         if "github" in response.meta.keys():
@@ -133,7 +138,7 @@ class FriendpageLinkSpider(scrapy.Spider):
                         if user_info[1] != '你的链接':
                             self.friend_poor.put(user_info)
             except:
-                pass
+                logger.warning("github友链获取失败")
 
         # 根据指定的theme主题解析
         if "theme" in response.meta.keys():

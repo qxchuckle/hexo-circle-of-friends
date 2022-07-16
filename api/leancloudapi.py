@@ -6,6 +6,8 @@ import random
 import requests
 import leancloud
 from hexo_circle_of_friends import settings
+from hexo_circle_of_friends.utils.process_time import time_compare
+from api.utils import start_end_check
 
 
 def db_init():
@@ -15,7 +17,7 @@ def db_init():
         leancloud.init(os.environ["APPID"], os.environ["APPKEY"])
 
 
-def query_all(list, start: int = 0, end: int = -1, rule: str = "updated"):
+def query_all(li, start: int = 0, end: int = -1, rule: str = "updated"):
     # Verify key
     db_init()
 
@@ -40,6 +42,14 @@ def query_all(list, start: int = 0, end: int = -1, rule: str = "updated"):
     article_num = len(query_list)
     last_updated_time = max([item.get('createdAt').strftime('%Y-%m-%d %H:%M:%S') for item in query_list])
 
+    # 检查start、end的合法性
+    start, end, message = start_end_check(start, end, article_num)
+    if message:
+        return {"message": message}
+    # 检查rule的合法性
+    if rule != "created" and rule != "updated":
+        return {"message": "rule error, please use 'created'/'updated'"}
+
     data['statistical_data'] = {
         'friends_num': friends_num,
         'active_num': active_num,
@@ -52,7 +62,7 @@ def query_all(list, start: int = 0, end: int = -1, rule: str = "updated"):
     article_data = []
     for item in query_list:
         itemlist = {}
-        for elem in list:
+        for elem in li:
             if elem == 'created':
                 itemlist[elem] = item.get('created')
             elif elem == 'avatar':
@@ -61,20 +71,12 @@ def query_all(list, start: int = 0, end: int = -1, rule: str = "updated"):
                 itemlist[elem] = item.get(elem)
         article_data_init.append(itemlist)
 
-    if end == -1:
-        end = min(article_num, 1000)
-    if start < 0 or start >= min(article_num, 1000):
-        return {"message": "start error"}
-    if end <= 0 or end > min(article_num, 1000):
-        return {"message": "end error"}
-    if rule != "created" and rule != "updated":
-        return {"message": "rule error, please use 'created'/'updated'"}
-
     rules = []
+    # list sort 是 稳定 的，这意味着当多个记录具有相同的键值时，将**保留其原始顺序**
     if rule == "created":
-        rules.extend(["created", "updated"])
-    else:
         rules.extend(["updated", "created"])
+    else:
+        rules.extend(["created", "updated"])
     for r in rules:
         try:
             article_data_init.sort(key=lambda x: x[r], reverse=True)
@@ -114,7 +116,7 @@ def query_friend():
     return friend_list_json
 
 
-def query_random_friend():
+def query_random_friend(num):
     # Verify key
     db_init()
 
@@ -133,10 +135,20 @@ def query_random_friend():
             'avatar': item.get('firendimg')
         }
         friend_list_json.append(itemlist)
-    return random.choice(friend_list_json)
+    try:
+        if num < 1:
+            return {"message": "param 'num' error"}
+        elif num == 1:
+            return random.choice(friend_list_json)
+        elif num <= len(friend_list_json):
+            return random.sample(friend_list_json, k=num)
+        else:
+            return random.sample(friend_list_json, k=len(friend_list_json))
+    except:
+        return {"message": "not found"}
 
 
-def query_random_post():
+def query_random_post(num):
     # Verify key
     db_init()
 
@@ -162,7 +174,18 @@ def query_random_post():
     article_data_init.sort(key=lambda x: x["updated"], reverse=True)
     for item in article_data_init:
         article_data.append(item)
-    return random.choice(article_data)
+    # return random.choice(article_data)
+    try:
+        if num < 1:
+            return {"message": "param 'num' error"}
+        elif num == 1:
+            return random.choice(article_data)
+        elif num <= len(article_data):
+            return random.sample(article_data, k=num)
+        else:
+            return random.sample(article_data, k=len(article_data))
+    except:
+        return {"message": "not found"}
 
 
 def query_post(link, num, rule):
@@ -209,15 +232,14 @@ def query_post(link, num, rule):
     if not author:
         return {"message": "not found"}
     article_num = len(article_data_init)
+    if num < 0 or num > min(article_num, 1000):
+        num = min(article_num, 1000)
     api_json['statistical_data'] = {
         "author": author,
         "link": link,
         "avatar": avatar,
-        "article_num": article_num
+        "article_num": num
     }
-
-    if num < 0 or num > min(article_num, 1000):
-        num = min(article_num, 1000)
     if rule != "created" and rule != "updated":
         return {"message": "rule error, please use 'created'/'updated'"}
     article_data_init.sort(key=lambda x: x[rule], reverse=True)
@@ -228,6 +250,46 @@ def query_post(link, num, rule):
         article_data.append(item)
     api_json['article_data'] = article_data[:num]
     return api_json
+
+
+def query_friend_status(days):
+    # 初始化数据库连接
+    db_init()
+    # 查询
+    Friendspoor = leancloud.Object.extend('friend_poor')
+    query = Friendspoor.query
+    query.descending('time')
+    query.limit(1000)
+    query.select('updated', 'author')
+    query_list = query.find()
+
+    Friendlist = leancloud.Object.extend('friend_list')
+    query_userinfo = Friendlist.query
+    query_userinfo.limit(1000)
+    query_userinfo.select('friendname', 'friendlink')
+    query_list_user = query_userinfo.find()
+    name_2_link_map = {user.get("friendname"): user.get("friendlink") for user in query_list_user}
+    friend_status = {
+        "total_friend_num": len(name_2_link_map),
+        "total_lost_num": 0,
+        "total_not_lost_num": 0,
+        "lost_friends": {},
+        "not_lost_friends": {},
+    }
+    not_lost_friends = {}
+    for i in query_list:
+        if not time_compare(i.get("updated"), days):
+            # 未超过指定天数，未失联
+            if name_2_link_map.get(i.get("author")):
+                not_lost_friends[i.get("author")] = name_2_link_map.pop(i.get("author"))
+            else:
+                pass
+    # 统计信息更新，失联友链更新
+    friend_status["total_not_lost_num"] = len(not_lost_friends)
+    friend_status["total_lost_num"] = friend_status["total_friend_num"] - friend_status["total_not_lost_num"]
+    friend_status["not_lost_friends"] = not_lost_friends
+    friend_status["lost_friends"] = name_2_link_map
+    return friend_status
 
 
 def query_post_json(jsonlink, list, start, end, rule):
