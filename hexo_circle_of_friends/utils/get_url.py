@@ -93,7 +93,7 @@ class GetUrl:
     def get_volantis_url(self,response, queue):
         avatar = response.css('a.simpleuser img::attr(src)').extract()
         if not avatar:
-            avatar = response.css('a.site-card img::attr(src)').extract()
+            avatar = response.css('a.site-card div.img img:first-child::attr(src)').extract()
         if not avatar:
             avatar = response.css('a.friend-card img::attr(src)').extract()
 
@@ -105,12 +105,12 @@ class GetUrl:
 
         name = response.css('a.simpleuser span::text').extract()
         if not name:
-            name = response.css('a.site-card span::text').extract()
+            name = response.css('a.site-card div.info span.title::text').extract()
         if not name:
             name = response.css('a.friend-card span::text').extract()
         if not name:
-            name = response.css('a.friend-card p.friend-name::text').extract()
-        self.handle(avatar, link, name, queue, "volantis")
+            name = response.css('a.friend-card p::text').extract()
+        self.handle(avatar, link, name, queue,"volantis")
 
     def get_Yun_url(self,response, queue):
         async_link = response.css("#links script::text").re("https://.*links\.json")[0]
